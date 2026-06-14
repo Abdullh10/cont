@@ -703,7 +703,7 @@ let state = {
     {id:"TYWZBK8",name:"محمد جبران فرحان عياشي",role:"corrector",phone:"+966568409690",subject:"",note:""},
     {id:"TJIENMU",name:"محمد حسين عبدالله العلي",role:"corrector",phone:"+966500880936",subject:"",note:""},
     {id:"TKPH8JX",name:"صقر بن محيسن بن شريده العبدلي العنزي",role:"corrector",phone:"+966506953994",subject:"",note:""},
-    {id:"TCOBVSP",name:"عبدالله  بن سالم عيسى المسيليم",role:"corrector",phone:"+966539169994",subject:"",note:""},
+    {id:"TCOBVSP",name:"عبدالله بن سالم عيسى المسيليم",role:"corrector",phone:"+966539169994",subject:"",note:""},
     {id:"TU16FYU",name:"معيض بن جبران بن محمد آل قاسم القحطاني",role:"corrector",phone:"+966530360360",subject:"",note:""},
     {id:"TVG01T7",name:"فهد بن عبدالرحمن أحمد السقوفي",role:"corrector",phone:"+966548118884",subject:"",note:""},
     {id:"TLNE6H4",name:"محمد بن خلف الله بن زايد الزايدي",role:"corrector",phone:"+966550210511",subject:"",note:""},
@@ -1560,7 +1560,7 @@ function renderScanResult() {
     <div class="log-entry">
       <div class="log-dot" style="background:${sc(e.stageIdx)}"></div>
       <div>
-        <span class="log-label">${e.stageLabel}</span>
+        <span class="log-label">${(state.stages[e.stageIdx])||e.stageLabel}</span>
         <span class="log-meta">${fmt(e.ts)} — ${e.user}</span>
         ${e.note?`<p class="log-note">"${e.note}"</p>`:""}
       </div>
@@ -1961,7 +1961,22 @@ function renderSStages(el) {
         const v=document.getElementById('newStage').value.trim();
         if(v){_editStages.push(v);renderSTabContent()}">إضافة</button>
     </div>
-    <button class="btn btn-green btn-full" onclick="state.stages=[..._editStages.filter(x=>x.trim())];saveState();toast('تم حفظ المراحل ✅')">💾 حفظ المراحل</button>
+    <button class="btn btn-green btn-full" onclick="
+  const newStages=[..._editStages.filter(x=>x.trim())];
+  state.bundles.forEach(b=>{
+    b.log.forEach(e=>{
+      if(e.stageIdx>=0 && e.stageIdx<newStages.length){
+        e.stageLabel=newStages[e.stageIdx];
+      }
+    });
+    if(b.stage>=0 && b.stage<newStages.length){
+      // update current stage label if needed (stored in log)
+    }
+  });
+  state.stages=newStages;
+  saveState();saveToCloud();
+  toast('تم حفظ المراحل وتحديثها في جميع السجلات ✅')
+">💾 حفظ المراحل</button>
   </div>`;
 }
 
@@ -2307,7 +2322,7 @@ function generatePDF(subjectFilter) {
         <tbody>
           ${b.log.map((e,i)=>`<tr style="border-bottom:1px solid #e5e7eb">
             <td style="padding:5px 8px;color:#64748b">${i+1}</td>
-            <td style="padding:5px 8px;font-weight:700">${e.stageLabel}</td>
+            <td style="padding:5px 8px;font-weight:700">${(state.stages[e.stageIdx])||e.stageLabel}</td>
             <td style="padding:5px 8px;direction:ltr;text-align:right;color:#64748b">${new Date(e.ts).toLocaleString("ar-SA",{dateStyle:"short",timeStyle:"short"})}</td>
             <td style="padding:5px 8px">${e.user}</td>
             <td style="padding:5px 8px;color:#64748b;font-style:italic">${e.note||"—"}</td>
@@ -2780,7 +2795,7 @@ function renderPrincipalDashboard(el) {
     <div style="display:flex;gap:10px;margin-bottom:9px;align-items:flex-start">
       <div style="width:8px;height:8px;border-radius:50%;background:${sc(e.stageIdx||0)};margin-top:4px;flex-shrink:0"></div>
       <div style="flex:1">
-        <span style="font-size:12px;font-weight:700;color:var(--text)">${e.stageLabel}</span>
+        <span style="font-size:12px;font-weight:700;color:var(--text)">${(state.stages[e.stageIdx])||e.stageLabel}</span>
         <span style="font-size:11px;color:var(--muted)"> · ${e.subject}</span>
         <br/><span style="font-size:10px;color:var(--muted)">${fmt(e.ts)} — ${e.user}</span>
       </div>
@@ -3115,7 +3130,7 @@ function renderPrinBundle(el) {
     <div style="display:flex;gap:11px;margin-bottom:${i<b.log.length-1?10:0}px;align-items:flex-start">
       <div style="width:9px;height:9px;border-radius:50%;background:${sc(e.stageIdx)};margin-top:4px;flex-shrink:0;box-shadow:0 1px 4px rgba(0,0,0,.2)"></div>
       <div>
-        <span style="font-size:12px;font-weight:700;color:var(--text)">${e.stageLabel}</span>
+        <span style="font-size:12px;font-weight:700;color:var(--text)">${(state.stages[e.stageIdx])||e.stageLabel}</span>
         <span style="font-size:11px;color:var(--muted);margin-right:5px">${fmt(e.ts)} — ${e.user}</span>
         ${e.note?`<p style="font-size:11px;color:var(--mid);font-style:italic;margin-top:1px">"${e.note}"</p>`:""}
       </div>
@@ -3153,14 +3168,15 @@ function renderPrincipalReport(el) {
     if(b.stage===state.stages.length-1) subjectMap[b.subject].done++;
   });
 
-  // Teachers workload
+  // Teachers workload with roles
   const tMap={};
   state.bundles.forEach(b=>{
-    [b.corrector,b.corrector2,b.reviewer,b.reviewer2,b.auditor,b.auditor2].filter(Boolean).forEach(tid=>{
+    [[b.corrector,"مصحح"],[b.corrector2,"مصحح 2"],[b.reviewer,"مراجع"],[b.reviewer2,"مراجع 2"],[b.auditor,"مدقق"],[b.auditor2,"مدقق 2"]].filter(([id])=>id).forEach(([tid,role])=>{
       const t=state.teachers.find(x=>x.id===tid);
       if(!t) return;
-      if(!tMap[t.name]) tMap[t.name]={bundles:0,papers:0};
-      tMap[t.name].bundles++; tMap[t.name].papers+=b.count;
+      const key=t.name+"__"+role;
+      if(!tMap[key]) tMap[key]={name:t.name,role,bundles:0,papers:0};
+      tMap[key].bundles++; tMap[key].papers+=b.count;
     });
   });
 
@@ -3241,14 +3257,15 @@ function renderPrincipalReport(el) {
     }).join("")}
   </div>`:""}
 
-  <!-- Teachers workload -->
+  <!-- Teachers workload - detailed by role -->
   ${Object.keys(tMap).length>0?`
   <div class="card">
-    <p class="card-title"><span class="ct-icon" style="background:#DBEAFE">👨‍🏫</span>أعباء المعلمين</p>
+    <p class="card-title"><span class="ct-icon" style="background:#DBEAFE">👨‍🏫</span>أعباء المعلمين حسب الدور</p>
     <div style="overflow-x:auto">
     <table class="data-table">
       <thead><tr>
         <th>المعلم</th>
+        <th>الدور</th>
         <th style="text-align:center">المظاريف المعيّنة</th>
         <th style="text-align:center">إجمالي الأوراق</th>
       </tr></thead>
@@ -3256,7 +3273,14 @@ function renderPrincipalReport(el) {
         ${Object.entries(tMap).sort((a,b)=>b[1].papers-a[1].papers).map(([name,d])=>`
         <tr>
           <td style="font-weight:700;color:var(--navy)">${name}</td>
-          <td style="text-align:center">${d.bundles}</td>
+          <td><span style="padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700;background:${
+            d.role==='مصحح'||d.role==='مصحح 2'?'var(--purBg)':
+            d.role==='مراجع'||d.role==='مراجع 2'?'var(--greenBg)':'var(--amberBg)'
+          };color:${
+            d.role==='مصحح'||d.role==='مصحح 2'?'var(--purple)':
+            d.role==='مراجع'||d.role==='مراجع 2'?'var(--greenM)':'var(--amber)'
+          }">${d.role}</span></td>
+          <td style="text-align:center;font-weight:700">${d.bundles}</td>
           <td style="text-align:center;color:var(--mid)">${d.papers}</td>
         </tr>`).join("")}
       </tbody>
@@ -3274,60 +3298,174 @@ function generatePrincipalPDF() {
   const pct        = total>0?Math.round((done/total)*100):0;
   const printDate  = new Date().toLocaleDateString("ar-SA",{dateStyle:"full"});
 
-  const subjectRows={};
+  // تجميع المواد مع تفاصيل المصححين والمراجعين والمدققين
+  const subjectData = {};
   state.bundles.forEach(b=>{
-    if(!subjectRows[b.subject]) subjectRows[b.subject]={total:0,done:0,inProg:0,papers:0};
-    subjectRows[b.subject].total++; subjectRows[b.subject].papers+=b.count;
-    if(b.stage===state.stages.length-1) subjectRows[b.subject].done++;
-    else if(b.stage>=0) subjectRows[b.subject].inProg++;
+    const subj = b.subject || "غير محدد";
+    const grade = b.grade || "غير محدد";
+    if(!subjectData[subj]) subjectData[subj] = {};
+    if(!subjectData[subj][grade]) subjectData[subj][grade] = [];
+    const corrT  = state.teachers.find(t=>t.id===b.corrector);
+    const corrT2 = state.teachers.find(t=>t.id===b.corrector2);
+    const revT   = state.teachers.find(t=>t.id===b.reviewer);
+    const revT2  = state.teachers.find(t=>t.id===b.reviewer2);
+    const audT   = state.teachers.find(t=>t.id===b.auditor);
+    const audT2  = state.teachers.find(t=>t.id===b.auditor2);
+    const sName  = b.stage<0?"جديد":(state.stages[b.stage]||"—");
+    const lastLog = b.log[b.log.length-1];
+    subjectData[subj][grade].push({
+      barcode:b.barcode, count:b.count, stage:b.stage, stageName:sName,
+      corrT:corrT?corrT.name:"—", corrT2:corrT2?corrT2.name:"",
+      revT:revT?revT.name:"—",   revT2:revT2?revT2.name:"",
+      audT:audT?audT.name:"—",   audT2:audT2?audT2.name:"",
+      lastUpdate:lastLog?new Date(lastLog.ts).toLocaleDateString("ar-SA"):"—",
+      examDay:b.examDay||"", examDate:b.examDate||"", examHall:b.examHall||"—",
+      isDone: b.stage===state.stages.length-1
+    });
   });
 
-  const bundleRows = state.bundles.map((b,i)=>{
-    const corrT = state.teachers.find(t=>t.id===b.corrector);
-    const sName = b.stage<0?"جديد":state.stages[b.stage]||"—";
-    const lastLog = b.log[b.log.length-1];
-    return `<tr style="background:${i%2===0?"#fff":"#f8fafc"}">
-      <td style="font-family:monospace;font-size:11px">${b.barcode}</td>
-      <td style="font-weight:700">${b.subject}</td>
-      <td>${b.grade||"—"}</td>
-      <td style="text-align:center">${b.count}</td>
-      <td>${corrT?corrT.name:"—"}</td>
-      <td style="font-weight:700;color:${b.stage===state.stages.length-1?"#059669":"#0D1F3C"}">${sName}</td>
-      <td style="font-size:10px;color:#64748b">${lastLog?new Date(lastLog.ts).toLocaleDateString("ar-SA"):"—"}</td>
-    </tr>`;
+  // بناء قسم كل مادة
+  const subjectSections = Object.entries(subjectData).map(([subj, gradeData])=>{
+    const allBundles = Object.values(gradeData).flat();
+    const subjDone   = allBundles.filter(b=>b.isDone).length;
+    const subjTotal  = allBundles.length;
+    const subjPapers = allBundles.reduce((a,b)=>a+b.count,0);
+    const subjPct    = subjTotal>0?Math.round((subjDone/subjTotal)*100):0;
+    const pColor     = subjPct>=80?"#059669":subjPct>=50?"#D97706":"#2563EB";
+
+    // بناء قسم كل مرحلة دراسية داخل المادة
+    const gradeSections = Object.entries(gradeData).sort((a,b)=>a[0].localeCompare(b[0],'ar')).map(([grade, bundles])=>{
+      const gDone   = bundles.filter(b=>b.isDone).length;
+      const gTotal  = bundles.length;
+      const gPapers = bundles.reduce((a,b)=>a+b.count,0);
+      const gPct    = gTotal>0?Math.round((gDone/gTotal)*100):0;
+      const gColor  = gPct>=80?"#059669":gPct>=50?"#D97706":"#2563EB";
+
+      const bundleRows = bundles.map((b,i)=>`
+        <tr style="background:${i%2===0?"#fff":"#f8fafc"}">
+          <td style="font-family:monospace;font-size:11px;white-space:nowrap">${b.barcode}</td>
+          <td style="text-align:center;font-weight:700">${b.count}</td>
+          <td style="font-size:11px">${b.examDay} ${b.examDate}</td>
+          <td style="font-size:11px">${b.examHall}</td>
+          <td style="font-size:11px;font-weight:700;color:#0D1F3C">${b.corrT}${b.corrT2?" / "+b.corrT2:""}</td>
+          <td style="font-size:11px;color:#374151">${b.revT}${b.revT2?" / "+b.revT2:""}</td>
+          <td style="font-size:11px;color:#374151">${b.audT}${b.audT2?" / "+b.audT2:""}</td>
+          <td style="font-weight:700;color:${b.isDone?"#059669":"#0D1F3C"};font-size:11px;white-space:nowrap">${b.stageName}</td>
+          <td style="font-size:10px;color:#64748b">${b.lastUpdate}</td>
+        </tr>`).join("");
+
+      return `
+      <div style="margin-bottom:12px;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">
+        <div style="background:#f1f5f9;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #e2e8f0">
+          <span style="font-weight:800;color:#0D1F3C;font-size:13px">🎓 ${grade}</span>
+          <div style="display:flex;gap:10px;align-items:center;font-size:11px;color:#64748b">
+            <span>📦 ${gTotal} مظروف</span>
+            <span>📄 ${gPapers} ورقة</span>
+            <span style="background:${gColor}20;color:${gColor};padding:2px 8px;border-radius:99px;font-weight:700">${gPct}%</span>
+          </div>
+        </div>
+        <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead>
+            <tr style="background:#e8edf4">
+              <th style="padding:7px 8px;text-align:right;font-size:11px">الباركود</th>
+              <th style="padding:7px 8px;text-align:center;font-size:11px">الأوراق</th>
+              <th style="padding:7px 8px;text-align:right;font-size:11px">تاريخ الاختبار</th>
+              <th style="padding:7px 8px;text-align:right;font-size:11px">القاعة</th>
+              <th style="padding:7px 8px;text-align:right;font-size:11px;color:#6D28D9">✏️ المصحح</th>
+              <th style="padding:7px 8px;text-align:right;font-size:11px;color:#065F46">🔍 المراجع</th>
+              <th style="padding:7px 8px;text-align:right;font-size:11px;color:#92400E">🔏 المدقق</th>
+              <th style="padding:7px 8px;text-align:right;font-size:11px">المرحلة الحالية</th>
+              <th style="padding:7px 8px;text-align:right;font-size:11px">آخر تحديث</th>
+            </tr>
+          </thead>
+          <tbody>${bundleRows}</tbody>
+        </table>
+        </div>
+      </div>`;
+    }).join("");
+
+    return `
+    <div style="margin-bottom:24px;page-break-inside:avoid">
+      <!-- Subject header -->
+      <div style="background:#0D1F3C;color:#fff;padding:11px 16px;border-radius:8px 8px 0 0;display:flex;justify-content:space-between;align-items:center">
+        <span style="font-weight:800;font-size:15px">📚 ${subj}</span>
+        <div style="display:flex;gap:12px;align-items:center;font-size:12px">
+          <span>📦 ${subjTotal} مظروف</span>
+          <span>📄 ${subjPapers} ورقة</span>
+          <span style="background:${pColor};padding:3px 10px;border-radius:99px;font-weight:700">${subjPct}% مكتمل (${subjDone}/${subjTotal})</span>
+        </div>
+      </div>
+      <div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px;padding:12px">
+        ${gradeSections}
+      </div>
+    </div>`;
   }).join("");
 
-  const win=window.open("","_blank","width=1050,height=800");
+  // ملخص المواد مع المرحلة الدراسية
+  const summaryRows = Object.entries(subjectData).map(([subj, gradeData])=>{
+    const grades = Object.keys(gradeData).sort((a,b)=>a.localeCompare(b,'ar'));
+    return grades.map(grade=>{
+      const bundles = gradeData[grade];
+      const d = bundles.filter(b=>b.isDone).length;
+      const t = bundles.length;
+      const p = bundles.reduce((a,b)=>a+b.count,0);
+      const pct2 = t>0?Math.round((d/t)*100):0;
+      const c = pct2>=80?"#059669":pct2>=50?"#D97706":"#2563EB";
+      // collect unique teachers per role
+      const correctors = [...new Set(bundles.map(b=>b.corrT).filter(x=>x&&x!=="—"))];
+      const reviewers  = [...new Set(bundles.map(b=>b.revT).filter(x=>x&&x!=="—"))];
+      const auditors   = [...new Set(bundles.map(b=>b.audT).filter(x=>x&&x!=="—"))];
+      return `<tr>
+        <td style="font-weight:700;color:#0D1F3C">${subj}</td>
+        <td>${grade}</td>
+        <td style="text-align:center">${t}</td>
+        <td style="text-align:center">${p}</td>
+        <td style="text-align:center;color:#6D28D9;font-size:11px">${correctors.join("، ")||"—"}</td>
+        <td style="text-align:center;color:#065F46;font-size:11px">${reviewers.join("، ")||"—"}</td>
+        <td style="text-align:center;color:#92400E;font-size:11px">${auditors.join("، ")||"—"}</td>
+        <td><div style="background:#e5e7eb;border-radius:4px;height:6px"><div style="height:100%;width:${pct2}%;background:${c};border-radius:4px"></div></div><span style="font-size:10px;color:${c};font-weight:700">${pct2}%</span></td>
+      </tr>`;
+    }).join("");
+  }).join("");
+
+  const win=window.open("","_blank","width=1100,height=900");
   win.document.write(`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"/>
   <title>تقرير مدير المدرسة</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;800;900&display=swap');
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:'Tajawal',Arial,sans-serif;direction:rtl;color:#0D1F3C;font-size:13px;line-height:1.5}
-    .page{padding:28px 32px}
-    .header{border-bottom:3px solid #0D1F3C;padding-bottom:14px;margin-bottom:18px;display:flex;justify-content:space-between;align-items:flex-start}
+    .page{padding:24px 28px}
+    .header{border-bottom:3px solid #0D1F3C;padding-bottom:14px;margin-bottom:18px;display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
     .header h1{font-size:20px;font-weight:900}
     .header .sub{font-size:12px;color:#64748b;margin-top:3px}
-    .kpi-row{display:flex;gap:10px;margin-bottom:18px;flex-wrap:wrap}
-    .kpi{flex:1;min-width:90px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px;text-align:center}
-    .kpi .val{font-size:24px;font-weight:900}
+    .kpi-row{display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap}
+    .kpi{flex:1;min-width:80px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px;text-align:center}
+    .kpi .val{font-size:22px;font-weight:900}
     .kpi .lbl{font-size:10px;color:#64748b;margin-top:2px}
-    h3{font-size:14px;font-weight:800;margin:16px 0 8px;padding-bottom:5px;border-bottom:1px solid #e5e7eb}
-    table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:16px}
+    h3{font-size:14px;font-weight:800;margin:18px 0 10px;padding-bottom:6px;border-bottom:2px solid #e5e7eb;display:flex;align-items:center;gap:6px}
+    table{width:100%;border-collapse:collapse;font-size:12px}
     th{background:#0D1F3C;color:#fff;padding:8px 10px;text-align:right;font-weight:700}
     td{padding:7px 10px;border-bottom:1px solid #e5e7eb}
-    .prog{background:#e5e7eb;border-radius:4px;height:6px;margin-top:3px}
-    .prog-fill{height:100%;border-radius:4px}
     .footer{margin-top:20px;padding-top:12px;border-top:1px solid #e5e7eb;display:flex;justify-content:space-between;font-size:10px;color:#94a3b8}
-    .no-print{margin-top:16px;display:flex;gap:8px}
-    @media print{.no-print{display:none}body{font-size:11px}.page{padding:16px 20px}}
+    .no-print{margin-top:16px;display:flex;gap:8px;justify-content:center}
+    @media print{.no-print{display:none}body{font-size:11px}.page{padding:14px 18px}h3{margin:12px 0 8px}}
   </style></head><body>
   <div class="page">
     <div class="header">
-      <img src="${LOGO_SRC}" alt="شعار" style="width:110px;height:110px;object-fit:contain;flex-shrink:0"/>
-      <div style="flex:1"><h1>${state.schoolName}</h1><p class="sub">تقرير مدير المدرسة — ${printDate}</p></div>
-      <div style="background:#0D1F3C;color:#fff;padding:6px 14px;border-radius:8px;font-size:12px;font-weight:700">${total} مظروف</div>
+      <img src="${LOGO_SRC}" alt="شعار" style="width:90px;height:90px;object-fit:contain;flex-shrink:0"/>
+      <div style="flex:1">
+        <h1>${state.schoolName}</h1>
+        <p class="sub">تقرير مدير المدرسة — ${printDate}</p>
+        <p class="sub">إعداد: ${currentUser.name}</p>
+      </div>
+      <div style="background:#0D1F3C;color:#fff;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:700;text-align:center">
+        ${total} مظروف<br/><span style="font-size:10px;font-weight:400">${pct}% مكتمل</span>
+      </div>
     </div>
+
+    <!-- KPIs -->
     <div class="kpi-row">
       <div class="kpi"><div class="val">${total}</div><div class="lbl">إجمالي المظاريف</div></div>
       <div class="kpi"><div class="val">${totalPapers}</div><div class="lbl">إجمالي الأوراق</div></div>
@@ -3336,29 +3474,37 @@ function generatePrincipalPDF() {
       <div class="kpi"><div class="val" style="color:#64748b">${newB}</div><div class="lbl">جديدة</div></div>
       <div class="kpi"><div class="val" style="color:${pct>=80?"#059669":pct>=50?"#D97706":"#2563EB"}">${pct}%</div><div class="lbl">نسبة الإنجاز</div></div>
     </div>
-    <h3>📚 ملخص المواد</h3>
+
+    <!-- ملخص شامل -->
+    <h3>📋 ملخص المواد والمراحل الدراسية</h3>
+    <div style="overflow-x:auto;margin-bottom:20px">
     <table>
-      <thead><tr><th>المادة</th><th>المظاريف</th><th>الأوراق</th><th>مكتمل</th><th>جارٍ</th><th>نسبة الإنجاز</th></tr></thead>
-      <tbody>
-      ${Object.entries(subjectRows).map(([s,d])=>{
-        const p=d.total>0?Math.round((d.done/d.total)*100):0;
-        return `<tr><td style="font-weight:700">${s}</td><td>${d.total}</td><td>${d.papers}</td>
-        <td style="color:#059669;font-weight:700">${d.done}</td><td style="color:#D97706">${d.inProg}</td>
-        <td><div class="prog"><div class="prog-fill" style="width:${p}%;background:${p>=80?"#059669":p>=50?"#F59E0B":"#3B82F6"}"></div></div>${p}%</td></tr>`;
-      }).join("")}
-      </tbody>
+      <thead>
+        <tr>
+          <th>المادة</th>
+          <th>الصف</th>
+          <th style="text-align:center">المظاريف</th>
+          <th style="text-align:center">الأوراق</th>
+          <th style="text-align:center;color:#C4B5FD">✏️ المصححون</th>
+          <th style="text-align:center;color:#6EE7B7">🔍 المراجعون</th>
+          <th style="text-align:center;color:#FDE68A">🔏 المدققون</th>
+          <th>نسبة الإنجاز</th>
+        </tr>
+      </thead>
+      <tbody>${summaryRows}</tbody>
     </table>
-    <h3>📦 تفاصيل جميع المظاريف</h3>
-    <table>
-      <thead><tr><th>الباركود</th><th>المادة</th><th>الصف</th><th>الأوراق</th><th>المصحح</th><th>المرحلة الحالية</th><th>آخر تحديث</th></tr></thead>
-      <tbody>${bundleRows}</tbody>
-    </table>
+    </div>
+
+    <!-- تفاصيل كل مادة -->
+    <h3>📚 تفاصيل كل مادة — المصححون والمراجعون والمدققون</h3>
+    ${subjectSections}
+
     <div class="footer">
       <span>${state.schoolName} — نظام تتبع مظاريف الاختبارات</span>
-      <span>طُبع بواسطة مدير المدرسة — ${printDate}</span>
+      <span>طُبع بواسطة: ${currentUser.name} — ${printDate}</span>
     </div>
     <div class="no-print">
-      <button onclick="window.print()" style="padding:9px 22px;background:#0D1F3C;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-family:inherit;font-weight:700">🖨️ طباعة / PDF</button>
+      <button onclick="window.print()" style="padding:9px 24px;background:#0D1F3C;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-family:inherit;font-weight:700">🖨️ طباعة / حفظ PDF</button>
       <button onclick="window.close()" style="padding:9px 16px;background:#64748b;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-family:inherit">إغلاق</button>
     </div>
   </div>
